@@ -6,7 +6,7 @@ namespace JSONModels.TwitterSearch
     public class Rootobject
     {
         public Globalobjects globalObjects { get; set; }
-        //public Timeline timeline { get; set; }
+        public Timeline timeline { get; set; }
     }
 
     public class Globalobjects
@@ -673,6 +673,13 @@ namespace JSONModels.TwitterSearch
     public class Instruction
     {
         public Addentries addEntries { get; set; }
+        public Replaceentry replaceEntry { get; set; }
+    }
+
+    public class Replaceentry
+    {
+        public string entryIdToReplace { get; set; }
+        public Entry entry { get; set; }
     }
 
     public class Addentries
