@@ -17,6 +17,8 @@ namespace TwitterSearchScraper
         public string[] videos;
     }
 
+
+
     public class TwitterSearch : TwitterBase
     {
         public TwitterSearch(string bearerToken) : base(bearerToken){
@@ -24,21 +26,25 @@ namespace TwitterSearchScraper
 
         }
 
+
+
         public TwitterSearchResult doSearch(string term)
         {
 
-            string[] filterKinds = new string[] { "", "video","image"};
+            //string[] filterKinds = new string[] { "", "video","image"};
 
             List<string> photos = new List<string>();
             List<string> videos = new List<string>();
 
+            TwitterSearchURLConstructor.SEARCHTYPE[] searchTypes = (TwitterSearchURLConstructor.SEARCHTYPE[])Enum.GetValues(typeof(TwitterSearchURLConstructor.SEARCHTYPE));
 
-            foreach(string kind in filterKinds)
+            //foreach(string kind in filterKinds)
+            foreach (TwitterSearchURLConstructor.SEARCHTYPE searchType in searchTypes)
             {
 
                 bool endReached = false;
 
-                string scroll = "";
+                string cursor = null;
 
                 int index = 0;
 
@@ -51,7 +57,8 @@ namespace TwitterSearchScraper
 
                 while (!endReached) {
                     index++;
-                    string link = "https://twitter.com/i/api/2/search/adaptive.json?include_profile_interstitial_type=1&include_blocking=1&include_blocked_by=1&include_followed_by=1&include_want_retweets=1&include_mute_edge=1&include_can_dm=1&include_can_media_tag=1&skip_status=1&cards_platform=Web-12&include_cards=1&include_ext_alt_text=true&include_quote_count=true&include_reply_count=1&tweet_mode=extended&include_entities=true&include_user_entities=true&include_ext_media_color=true&include_ext_media_availability=true&send_error_codes=true&simple_quoted_tweet=true&q="+HttpUtility.UrlEncode(term)+"&count=20&query_source=typed_query&pc=1&spelling_corrections=1&ext=mediaStats%2ChighlightedLabel%2CvoiceInfo"+(kind==""?"": "&result_filter="+kind)+scroll;
+                    ///string link = "https://twitter.com/i/api/2/search/adaptive.json?include_profile_interstitial_type=1&include_blocking=1&include_blocked_by=1&include_followed_by=1&include_want_retweets=1&include_mute_edge=1&include_can_dm=1&include_can_media_tag=1&skip_status=1&cards_platform=Web-12&include_cards=1&include_ext_alt_text=true&include_quote_count=true&include_reply_count=1&tweet_mode=extended&include_entities=true&include_user_entities=true&include_ext_media_color=true&include_ext_media_availability=true&send_error_codes=true&simple_quoted_tweet=true&q="+HttpUtility.UrlEncode(term)+"&count=20&query_source=typed_query&pc=1&spelling_corrections=1&ext=mediaStats%2ChighlightedLabel%2CvoiceInfo"+(kind==""?"": "&result_filter="+kind)+scroll;
+                    string link = TwitterSearchURLConstructor.CreateUrl(searchType, term,cursor,1000);
                     HttpWebRequest req = (HttpWebRequest)WebRequest.Create(link);
                     req.Headers.Add("authorization", "Bearer " + bearerToken);
                     req.Headers.Add("x-guest-token", guestToken);
@@ -82,8 +89,8 @@ namespace TwitterSearchScraper
                                 }
                             }
 
-                            Logger.Log("twitterSearch-" + kind + "-" + term + "-" + index, webcontent);
-                            Logger.Log("twitterSearchHeaders-" + kind + "-" + term + "-" + index, headersForLog.ToString());
+                            Logger.Log("twitterSearch-" + searchType.ToString() + "-" + term + "-" + index, webcontent);
+                            Logger.Log("twitterSearchHeaders-" + searchType.ToString()  + "-" + term + "-" + index, headersForLog.ToString());
                             
                             JSONModels.TwitterSearch.Rootobject ro = JsonSerializer.Deserialize<JSONModels.TwitterSearch.Rootobject>(webcontent, jsonOpt);
 
@@ -162,7 +169,7 @@ namespace TwitterSearchScraper
                             }
 
                             // Find scroll cursor for more results
-                            scroll = "";
+                            cursor = null;
                             if(ro.timeline != null && ro.timeline.instructions != null)
                             {
 
@@ -174,7 +181,7 @@ namespace TwitterSearchScraper
                                         {
                                             if(entry.content != null && entry.content.operation != null && entry.content.operation.cursor != null && entry.content.operation.cursor.cursorType == "Bottom")
                                             {
-                                                scroll = "&cursor=" + entry.content.operation.cursor.value;
+                                                cursor = entry.content.operation.cursor.value;
                                             }
                                         }
                                     }
@@ -184,12 +191,12 @@ namespace TwitterSearchScraper
                                         JSONModels.TwitterSearch.Entry entry = instruction.replaceEntry.entry;
                                         if (entry.content != null && entry.content.operation != null && entry.content.operation.cursor != null && entry.content.operation.cursor.cursorType == "Bottom")
                                         {
-                                            scroll = "&cursor=" + entry.content.operation.cursor.value;
+                                            cursor = entry.content.operation.cursor.value;
                                         }
                                     }
                                 }
                             }
-                            if(scroll == "")
+                            if(cursor == null)
                             {
                                 endReached = true;
                             }
@@ -220,5 +227,45 @@ namespace TwitterSearchScraper
 
         }
 
+    }
+
+    public class TwitterSearchURLConstructor
+    {
+
+        public enum SEARCHTYPE {
+            TOP,
+            LATEST,
+            PHOTO,
+            VIDEO
+        }
+
+        public static string CreateUrl(SEARCHTYPE searchType,string searchTerm,string cursor,int? overrideCount = null)
+        {
+
+
+
+            string retVal = null;
+            switch (searchType)
+            {
+                case SEARCHTYPE.TOP:
+                    retVal = "https://twitter.com/i/api/2/search/adaptive.json?include_profile_interstitial_type=1&include_blocking=1&include_blocked_by=1&include_followed_by=1&include_want_retweets=1&include_mute_edge=1&include_can_dm=1&include_can_media_tag=1&skip_status=1&cards_platform=Web-12&include_cards=1&include_ext_alt_text=true&include_quote_count=true&include_reply_count=1&tweet_mode=extended&include_entities=true&include_user_entities=true&include_ext_media_color=true&include_ext_media_availability=true&send_error_codes=true&simple_quoted_tweet=true&q="+ HttpUtility.UrlEncode(searchTerm) + "&count="+(overrideCount.HasValue ? overrideCount.Value.ToString() : "20")+"&query_source=typed_query&pc=1&spelling_corrections=1&ext=mediaStats%2ChighlightedLabel%2CvoiceInfo";
+                    break;
+                case SEARCHTYPE.LATEST:
+                    retVal = "https://twitter.com/i/api/2/search/adaptive.json?include_profile_interstitial_type=1&include_blocking=1&include_blocked_by=1&include_followed_by=1&include_want_retweets=1&include_mute_edge=1&include_can_dm=1&include_can_media_tag=1&skip_status=1&cards_platform=Web-12&include_cards=1&include_ext_alt_text=true&include_quote_count=true&include_reply_count=1&tweet_mode=extended&include_entities=true&include_user_entities=true&include_ext_media_color=true&include_ext_media_availability=true&send_error_codes=true&simple_quoted_tweet=true&q=" + HttpUtility.UrlEncode(searchTerm) + "&tweet_search_mode=live&count=" + (overrideCount.HasValue ? overrideCount.Value.ToString() : "40") + "&query_source=typed_query&pc=1&spelling_corrections=1&ext=mediaStats%2ChighlightedLabel%2CvoiceInfo";
+                    break;
+                case SEARCHTYPE.PHOTO:
+                    retVal = "https://twitter.com/i/api/2/search/adaptive.json?include_profile_interstitial_type=1&include_blocking=1&include_blocked_by=1&include_followed_by=1&include_want_retweets=1&include_mute_edge=1&include_can_dm=1&include_can_media_tag=1&skip_status=1&cards_platform=Web-12&include_cards=1&include_ext_alt_text=true&include_quote_count=true&include_reply_count=1&tweet_mode=extended&include_entities=true&include_user_entities=true&include_ext_media_color=true&include_ext_media_availability=true&send_error_codes=true&simple_quoted_tweet=true&q=" + HttpUtility.UrlEncode(searchTerm) + "&result_filter=image&count=" + (overrideCount.HasValue ? overrideCount.Value.ToString() : "20") + "&query_source=typed_query&pc=1&spelling_corrections=1&ext=mediaStats%2ChighlightedLabel%2CvoiceInfo";
+                    break;
+                case SEARCHTYPE.VIDEO:
+                    retVal = "https://twitter.com/i/api/2/search/adaptive.json?include_profile_interstitial_type=1&include_blocking=1&include_blocked_by=1&include_followed_by=1&include_want_retweets=1&include_mute_edge=1&include_can_dm=1&include_can_media_tag=1&skip_status=1&cards_platform=Web-12&include_cards=1&include_ext_alt_text=true&include_quote_count=true&include_reply_count=1&tweet_mode=extended&include_entities=true&include_user_entities=true&include_ext_media_color=true&include_ext_media_availability=true&send_error_codes=true&simple_quoted_tweet=true&q=" + HttpUtility.UrlEncode(searchTerm) + "&result_filter=video&count=" + (overrideCount.HasValue ? overrideCount.Value.ToString() : "20") + "&query_source=typed_query&pc=1&spelling_corrections=1&ext=mediaStats%2ChighlightedLabel%2CvoiceInfo";
+                    break;
+            }
+            if(retVal != null && cursor != null && cursor.Trim() != "")
+            {
+                retVal += "&cursor="+HttpUtility.UrlEncode(cursor);
+            }
+
+            return retVal;
+        }
     }
 }
