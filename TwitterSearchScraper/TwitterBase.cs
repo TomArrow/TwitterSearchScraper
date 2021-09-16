@@ -18,6 +18,21 @@ namespace TwitterSearchScraper
         protected string guestToken, bearerToken;
         protected JsonSerializerOptions jsonOpt = new JsonSerializerOptions();
 
+        private const int REQUESTS_PER_TOKEN = 100;
+        private int requestsMadeWithCurrentGuestToken = 0;
+        protected int RequestsMadeWithCurrentGuestToken
+        {
+            get { return requestsMadeWithCurrentGuestToken; }
+            set { 
+                requestsMadeWithCurrentGuestToken = value;
+                if(requestsMadeWithCurrentGuestToken >= REQUESTS_PER_TOKEN)
+                {
+                    GetGuestToken();
+                    requestsMadeWithCurrentGuestToken = 0;
+                }
+            }
+        }
+
         protected void GetGuestToken()
         {
             bool successful = false;

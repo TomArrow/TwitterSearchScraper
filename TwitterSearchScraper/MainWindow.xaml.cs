@@ -29,7 +29,8 @@ namespace TwitterSearchScraper
             Directory.CreateDirectory("logs");
             Directory.CreateDirectory("backup");
 
-            go();
+            //go();
+            _ = Task.Run(go);
         }
 
         // 
@@ -71,28 +72,58 @@ namespace TwitterSearchScraper
                 int waitBetweenCrawls = generalConfig.GetValue("general", "waitBetweenCrawls", 600);
                 int retryCountOnIssues = generalConfig.GetValue("general", "retryCountOnIssues", 10);
 
-                foreach (ConfigSection section in config.Sections)
+                Parallel.ForEach(config.Sections, new ParallelOptions() { MaxDegreeOfParallelism=5}, (ConfigSection section) =>
                 {
-                    
+                    //foreach (ConfigSection section in config.Sections)
+                    //{
+
+                    //MessageBox.Show(section.SectionName);
+
                     string sectionName = section.SectionName;
-                    if(sectionName == "__example__")
+                    if (sectionName == "__example__")
                     {
-                        continue;
+                        //continue;
+                        return;
                     }
-                    string[] searchTerms = config.getDuplicateValueArray(sectionName, "term");
-                    int wrongSpell = config.GetValue(sectionName, "wrongSpell", 0);
-                    string outputDirectory = config.GetValue(sectionName, "output").Trim('/').Trim('\\');
+                    string[] searchTerms = new string[0];
+                    int wrongSpell = 0;
+                    string outputDirectory = "";
+                    int ignore = 0;
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        searchTerms = config.getDuplicateValueArray(sectionName, "term");
+                        wrongSpell = config.GetValue(sectionName, "wrongSpell", 0);
+                        ignore = config.GetValue(sectionName, "ignore", 0);
+                        outputDirectory = config.GetValue(sectionName, "output").Trim('/').Trim('\\');
+                    });
+
+                    if(ignore > 0) // Option to temporarily disable crawls
+                    {
+                        return;
+                    }
 
                     List<string> variations = new List<string>();
-                    if (wrongSpell == 0)
+                    foreach (string term in searchTerms)
                     {
-                        variations.AddRange(searchTerms);
-                    }
-                    else
-                    {
+                        int wrongSpellLocal = wrongSpell;
+                        string[] tmp = term.Split(':');
+                        string termLocal = tmp[0];
+                        if (tmp.Length > 1) // wrongspell number override for this searchterm
+                        {
+                            int.TryParse(tmp[1], out wrongSpellLocal);
+                        }
+                        if (wrongSpellLocal == 0)
+                        {
+                            variations.Add(termLocal);
+                        }
+                        else
+                        {
 
-                        variations.AddRange(createVariations(searchTerms, wrongSpell));
+                            variations.AddRange(createVariations(new string[] { termLocal }, wrongSpellLocal));
+                        }
                     }
+
 
                     foreach (string term in variations)
                     {
@@ -103,7 +134,7 @@ namespace TwitterSearchScraper
                         if (result.photos.Length > 0)
                         {
                             File.AppendAllLines(outputDirectory + "\\" + sectionName + ".photos.txt", result.photos);
-                            File.AppendAllLines("backup\\" + sectionName+".photos.txt", result.photos);
+                            File.AppendAllLines("backup\\" + sectionName + ".photos.txt", result.photos);
                         }
                         if (result.videos.Length > 0)
                         {
@@ -111,7 +142,7 @@ namespace TwitterSearchScraper
                             File.AppendAllLines("backup\\" + sectionName + ".videos.txt", result.videos);
                         }
                     }
-                }
+                });
 
                 System.Threading.Thread.Sleep(waitBetweenCrawls*1000);
             }

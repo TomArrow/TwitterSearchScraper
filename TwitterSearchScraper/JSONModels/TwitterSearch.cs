@@ -27,9 +27,9 @@ namespace JSONModels.TwitterSearch
     public class Tweet
     {
         /*
-        public string created_at { get; set; }
+        public string created_at { get; set; }*/
         public long id { get; set; }
-        public string id_str { get; set; }
+        public string id_str { get; set; }/*
         public string full_text { get; set; }
         public bool truncated { get; set; }
         public int[] display_text_range { get; set; }
