@@ -15,6 +15,8 @@ namespace TwitterSearchScraper
     {
         public string[] photos;
         public string[] videos;
+        public Dictionary<long,JSONModels.TwitterSearch.Tweet> tweets;
+        public Dictionary<long, JSONModels.TwitterSearch.User> users;
     }
 
 
@@ -27,20 +29,28 @@ namespace TwitterSearchScraper
         }
 
 
-
-        public TwitterSearchResult doSearch(string term)
+        // getLatest is parameter because latest gets a LOT of results. Which might not be desired sometimes.
+        // Therefore latest=1 must be explicitly specified.
+        public TwitterSearchResult doSearch(string term,bool getLatest = false)
         {
 
             //string[] filterKinds = new string[] { "", "video","image"};
 
             List<string> photos = new List<string>();
             List<string> videos = new List<string>();
+            Dictionary<long,JSONModels.TwitterSearch.Tweet> tweets = new Dictionary<long, JSONModels.TwitterSearch.Tweet>();
+            Dictionary<long,JSONModels.TwitterSearch.User> users = new Dictionary<long, JSONModels.TwitterSearch.User>();
 
             TwitterSearchURLConstructor.SEARCHTYPE[] searchTypes = (TwitterSearchURLConstructor.SEARCHTYPE[])Enum.GetValues(typeof(TwitterSearchURLConstructor.SEARCHTYPE));
 
             //foreach(string kind in filterKinds)
             foreach (TwitterSearchURLConstructor.SEARCHTYPE searchType in searchTypes)
             {
+
+                if(searchType == TwitterSearchURLConstructor.SEARCHTYPE.LATEST && !getLatest)
+                {
+                    continue;
+                }
 
                 bool endReached = false;
 
@@ -94,6 +104,16 @@ namespace TwitterSearchScraper
                             
                             JSONModels.TwitterSearch.Rootobject ro = JsonSerializer.Deserialize<JSONModels.TwitterSearch.Rootobject>(webcontent, jsonOpt);
 
+                            if (ro.globalObjects.users != null && ro.globalObjects.users.Count > 0)
+                            {
+                                foreach (KeyValuePair<long, JSONModels.TwitterSearch.User> user in ro.globalObjects.users)
+                                {
+                                    if (!users.ContainsKey(user.Key))
+                                    {
+                                        users.Add(user.Key, user.Value);
+                                    }
+                                }
+                            }
 
                             if(ro.globalObjects.tweets != null)
                             {
@@ -102,8 +122,16 @@ namespace TwitterSearchScraper
                                     endReached = true;
                                 }
 
-                                foreach(KeyValuePair<string,JSONModels.TwitterSearch.Tweet> tweet in ro.globalObjects.tweets)
+                                //tweets.AddRange(ro.globalObjects.tweets.ToList<JSONModels.TwitterSearch.Tweet> ());
+                                //tweets.AddRange(ro.globalObjects.tweets);
+                                
+
+                                foreach(KeyValuePair<long,JSONModels.TwitterSearch.Tweet> tweet in ro.globalObjects.tweets)
                                 {
+                                    if (!tweets.ContainsKey(tweet.Key))
+                                    {
+                                        tweets.Add(tweet.Key, tweet.Value);
+                                    }
                                     tweetIds.Add(tweet.Value.id);
                                     if(tweet.Value.extended_entities != null && tweet.Value.extended_entities.media != null) { 
                                     
@@ -221,6 +249,8 @@ namespace TwitterSearchScraper
             TwitterSearchResult result = new TwitterSearchResult();
             result.videos = videos.ToArray();
             result.photos = photos.ToArray();
+            result.tweets = tweets;
+            result.users = users;
 
             return result;
             //FourPlebsSearchResult.Rootobject ro = JsonSerializer.Deserialize<FourPlebsSearchResult.Rootobject>(newText, opt);

@@ -1,5 +1,8 @@
 ﻿
+using SQLite;
+using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace JSONModels.TwitterSearch
 {
@@ -11,10 +14,10 @@ namespace JSONModels.TwitterSearch
 
     public class Globalobjects
     {
-        public Dictionary<string, Tweet> tweets { get; set; }
+        public Dictionary<long, Tweet> tweets { get; set; }
         //public Dictionary<string, Tweet> Tweet[] tweets { get; set; }
-        /*public Users11 users { get; set; }
-        public Moments moments { get; set; }
+        public Dictionary<long, User> users { get; set; }
+        /*public Moments moments { get; set; }
         public Cards cards { get; set; }
         public Places places { get; set; }
         public Media media { get; set; }
@@ -24,34 +27,216 @@ namespace JSONModels.TwitterSearch
     }
 
 
+
     public class Tweet
     {
+        bool isFixed = false;
+
+        public static void createTables(SQLiteConnection conn)
+        {
+            conn.CreateTable<Tweet>();
+            conn.CreateTable<User>();
+            conn.CreateTable<Medium2>();
+            conn.CreateTable<Variant>();
+            conn.CreateTable<Url>();
+        }
+
+        public void insertOrIgnoreIntoSQLite(SQLiteConnection conn)
+        {
+            doFixesBeforeSaving();
+            conn.Insert(this, "OR IGNORE");
+
+            if (extended_entities != null && extended_entities.urls != null)
+            {
+                foreach (Url url in extended_entities.urls)
+                {
+                    conn.Insert(url, "OR IGNORE");
+                }
+            }
+            if (entities != null && entities.urls != null)
+            {
+                foreach (Url url in entities.urls)
+                {
+                    conn.Insert(url, "OR IGNORE");
+                }
+            }
+
+            if (extended_entities != null && extended_entities.media != null)
+            {
+                foreach (Medium2 medium in extended_entities.media)
+                {
+                    conn.Insert(medium, "OR IGNORE");
+                    if (medium.video_info != null && medium.video_info.variants != null)
+                    {
+                        foreach (Variant variant in medium.video_info.variants)
+                        {
+                            conn.Insert(variant, "OR IGNORE");
+                        }
+                    }
+                }
+            }
+
+            if (entities != null && entities.media != null)
+            {
+                foreach (Medium2 medium in entities.media)
+                {
+                    conn.Insert(medium, "OR IGNORE");
+                    if (medium.video_info != null && medium.video_info.variants != null)
+                    {
+                        foreach (Variant variant in medium.video_info.variants)
+                        {
+                            conn.Insert(variant, "OR IGNORE");
+                        }
+                    }
+                }
+            }
+
+        }
+
+        public void doFixesBeforeSaving()
+        {
+            if (!isFixed)
+            {
+
+                Int64 tweetIdTimestamp = 1288834974657 + (id >> 22);
+                DateTimeOffset dateTimeOffset = DateTimeOffset.FromUnixTimeMilliseconds(tweetIdTimestamp);
+                created_time_from_id = dateTimeOffset.UtcDateTime;
+
+                string tmp = full_text;
+                if (entities != null && entities.urls != null)
+                {
+                    foreach (Url url in entities.urls)
+                    {
+                        url.tweetId = id;
+                        tmp = tmp.Replace(url.url, url.expanded_url);
+                    }
+                } 
+                if (extended_entities != null && extended_entities.urls != null)
+                {
+                    foreach (Url url in extended_entities.urls)
+                    {
+                        url.tweetId = id;
+                    }
+                } /*
+                if (entities != null && entities.media != null)
+                {
+                    foreach (Medium2 url in entities.media)
+                    {
+                        tmp = tmp.Replace(url.url, url.expanded_url);
+                    }
+                } */
+
+                full_text_urlsreplaced = tmp;
+
+                // Give media a reference to main tweet
+                if (entities != null && entities.media != null)
+                {
+                    foreach (Medium2 medium in entities.media)
+                    {
+                        Int64 mediumIdTimestamp = 1288834974657 + (medium.id >> 22);
+                        dateTimeOffset = DateTimeOffset.FromUnixTimeMilliseconds(mediumIdTimestamp);
+                        medium.created_time_from_id = dateTimeOffset.UtcDateTime;
+
+                        medium.tweetId = id;
+                        if (medium.video_info != null && medium.video_info.aspect_ratio != null)
+                        {
+                            medium.video_aspect_ratio = String.Join("x", medium.video_info.aspect_ratio);
+                        }
+                        if(medium.video_info != null && medium.video_info.duration_millis != null)
+                        {
+                            medium.video_duration_millis = medium.video_info.duration_millis.Value;
+                        }
+                        if(medium.video_info != null && medium.video_info.variants != null)
+                        {
+                            foreach(Variant variant in medium.video_info.variants)
+                            {
+                                variant.mediumId = medium.id;
+                            }
+                        }
+                    }
+                }
+                if (extended_entities != null && extended_entities.media != null)
+                {
+                    foreach (Medium2 medium in extended_entities.media)
+                    {
+                        Int64 mediumIdTimestamp = 1288834974657 + (medium.id >> 22);
+                        dateTimeOffset = DateTimeOffset.FromUnixTimeMilliseconds(mediumIdTimestamp);
+                        medium.created_time_from_id = dateTimeOffset.UtcDateTime;
+
+                        medium.tweetId = id;
+
+                        if (medium.video_info != null && medium.video_info.aspect_ratio != null)
+                        {
+                            medium.video_aspect_ratio = String.Join("x", medium.video_info.aspect_ratio);
+                        }
+                        if (medium.video_info != null && medium.video_info.duration_millis != null)
+                        {
+                            medium.video_duration_millis = medium.video_info.duration_millis.Value;
+                        }
+                        if (medium.video_info != null && medium.video_info.variants != null)
+                        {
+                            foreach (Variant variant in medium.video_info.variants)
+                            {
+                                variant.mediumId = medium.id;
+                            }
+                        }
+                    }
+                }
+
+
+                if(place != null && place.bounding_box != null && place.bounding_box.coordinates != null)
+                {
+                    place_coordinates = place.bounding_box.coordinates;
+                }
+
+                isFixed = true;
+            }
+        }
+
+        // Manually set values
+        public string username { get; set; }
+        public string screenname { get; set; }
+        public string full_text_urlsreplaced { get; set; }
+        public string place_coordinates { get; set; }
+        public DateTime created_time_from_id { get; set; }
+
+        // Actual response:
         /*
         public string created_at { get; set; }*/
+        [PrimaryKey,  Indexed]
         public long id { get; set; }
-        public string id_str { get; set; }/*
-        public string full_text { get; set; }
+        public string id_str { get; set; }
+
+        public string full_text { get; set; }/*
         public bool truncated { get; set; }
-        public int[] display_text_range { get; set; }
-        public Entities entities { get; set; }*/
+        public long[] display_text_range { get; set; }*/
+        [Ignore] // Bc we'll do this manually
+        public Entities entities { get; set; }
+        [Ignore] // Bc we'll do this manually
         public Extended_Entities extended_entities { get; set; }/*
-        public string source { get; set; }
-        public object in_reply_to_status_id { get; set; }
-        public object in_reply_to_status_id_str { get; set; }
-        public object in_reply_to_user_id { get; set; }
-        public object in_reply_to_user_id_str { get; set; }
-        public object in_reply_to_screen_name { get; set; }
+        public string source { get; set; }*/
+        public long? in_reply_to_status_id { get; set; }
+        [Ignore]
+        public string in_reply_to_status_id_str { get; set; }
+        public long? in_reply_to_user_id { get; set; }
+        [Ignore]
+        public string in_reply_to_user_id_str { get; set; }
+        public string in_reply_to_screen_name { get; set; }
+        [Indexed]
         public long user_id { get; set; }
+        [Ignore]
         public string user_id_str { get; set; }
-        public object geo { get; set; }
-        public object coordinates { get; set; }
-        public object place { get; set; }
-        public object contributors { get; set; }
+        //public object geo { get; set; }
+        [JsonConverter(typeof(RawPropertyConverter))]
+        public string coordinates { get; set; }
+        [Ignore] // Bc we'll do this manually
+        public Place place { get; set; }/*
+        public object contributors { get; set; }*/
         public bool is_quote_status { get; set; }
-        public int retweet_count { get; set; }
-        public int favorite_count { get; set; }
-        public int reply_count { get; set; }
-        public int quote_count { get; set; }
+        public long retweet_count { get; set; }
+        public long favorite_count { get; set; }
+        public long reply_count { get; set; }
+        public long quote_count { get; set; }
         public long conversation_id { get; set; }
         public string conversation_id_str { get; set; }
         public bool favorited { get; set; }
@@ -59,15 +244,30 @@ namespace JSONModels.TwitterSearch
         public bool possibly_sensitive { get; set; }
         public bool possibly_sensitive_editable { get; set; }
         public string lang { get; set; }
-        public object supplemental_language { get; set; }
+        public string supplemental_language { get; set; }/*
         public Self_Thread self_thread { get; set; }
         public Card card { get; set; }*/
+    }
+
+
+
+    public class Place
+    {
+        public BoundingBox bounding_box { get; set; }
+    }
+    public class BoundingBox
+    {
+        public string type { get; set; }
+        //public double[][][] coordinates { get; set; }
+        [JsonConverter(typeof(RawPropertyConverter))]
+        public string coordinates { get; set; }
     }
 
 
     public class Extended_Entities
     {
         public Medium2[] media { get; set; }
+        public Url[] urls { get; set; }
     }
 
 
@@ -77,29 +277,37 @@ namespace JSONModels.TwitterSearch
         public object[] symbols { get; set; }
         public User_Mentions[] user_mentions { get; set; }
         public Url[] urls { get; set; }
+        public Medium2[] media { get; set; }
     }
 
     public class Hashtag
     {
         public string text { get; set; }
-        public int[] indices { get; set; }
+        public long[] indices { get; set; }
     }
 
     public class User_Mentions
     {
         public string screen_name { get; set; }
         public string name { get; set; }
-        public int id { get; set; }
+        public long id { get; set; }
         public string id_str { get; set; }
-        public int[] indices { get; set; }
+        public long[] indices { get; set; }
     }
 
     public class Url
     {
+        // Generated:
+        [Indexed]
+        public long tweetId { get; set; }
+
+        // API:
+        [PrimaryKey,Indexed]
         public string url { get; set; }
         public string expanded_url { get; set; }
         public string display_url { get; set; }
-        public int[] indices { get; set; }
+        [Ignore]
+        public long[] indices { get; set; }
     }
 
     public class Card
@@ -237,8 +445,8 @@ namespace JSONModels.TwitterSearch
     public class Image_Value
     {
         public string url { get; set; }
-        public int width { get; set; }
-        public int height { get; set; }
+        public long width { get; set; }
+        public long height { get; set; }
         public object alt { get; set; }
     }
 
@@ -251,8 +459,8 @@ namespace JSONModels.TwitterSearch
     public class Image_Value1
     {
         public string url { get; set; }
-        public int width { get; set; }
-        public int height { get; set; }
+        public long width { get; set; }
+        public long height { get; set; }
         public object alt { get; set; }
     }
 
@@ -265,8 +473,8 @@ namespace JSONModels.TwitterSearch
     public class Image_Value2
     {
         public string url { get; set; }
-        public int width { get; set; }
-        public int height { get; set; }
+        public long width { get; set; }
+        public long height { get; set; }
         public object alt { get; set; }
     }
 
@@ -279,8 +487,8 @@ namespace JSONModels.TwitterSearch
     public class Image_Value3
     {
         public string url { get; set; }
-        public int width { get; set; }
-        public int height { get; set; }
+        public long width { get; set; }
+        public long height { get; set; }
         public object alt { get; set; }
     }
 
@@ -293,8 +501,8 @@ namespace JSONModels.TwitterSearch
     public class Image_Value4
     {
         public string url { get; set; }
-        public int width { get; set; }
-        public int height { get; set; }
+        public long width { get; set; }
+        public long height { get; set; }
         public object alt { get; set; }
     }
 
@@ -322,7 +530,7 @@ namespace JSONModels.TwitterSearch
         public string url { get; set; }
         public string expanded_url { get; set; }
         public string display_url { get; set; }
-        public int[] indices { get; set; }
+        public long[] indices { get; set; }
     }
 
     public class Description1
@@ -343,9 +551,9 @@ namespace JSONModels.TwitterSearch
 
     public class Rgb
     {
-        public int red { get; set; }
-        public int green { get; set; }
-        public int blue { get; set; }
+        public long red { get; set; }
+        public long green { get; set; }
+        public long blue { get; set; }
     }
 
     public class Profile_Image_Extensions
@@ -356,7 +564,7 @@ namespace JSONModels.TwitterSearch
     public class Mediastats
     {
         public R r { get; set; }
-        public int ttl { get; set; }
+        public long ttl { get; set; }
     }
 
     public class R
@@ -377,9 +585,9 @@ namespace JSONModels.TwitterSearch
 
     public class Rgb1
     {
-        public int red { get; set; }
-        public int green { get; set; }
-        public int blue { get; set; }
+        public long red { get; set; }
+        public long green { get; set; }
+        public long blue { get; set; }
     }
 
     public class Profile_Banner_Extensions
@@ -390,7 +598,7 @@ namespace JSONModels.TwitterSearch
     public class Mediastats1
     {
         public R1 r { get; set; }
-        public int ttl { get; set; }
+        public long ttl { get; set; }
     }
 
     public class R1
@@ -406,7 +614,7 @@ namespace JSONModels.TwitterSearch
     public class Highlightedlabel
     {
         public R2 r { get; set; }
-        public int ttl { get; set; }
+        public long ttl { get; set; }
     }
 
     public class R2
@@ -445,7 +653,7 @@ namespace JSONModels.TwitterSearch
     {
         public long id { get; set; }
         public string id_str { get; set; }
-        public int[] indices { get; set; }
+        public long[] indices { get; set; }
         public string media_url { get; set; }
         public string media_url_https { get; set; }
         public string url { get; set; }
@@ -458,8 +666,8 @@ namespace JSONModels.TwitterSearch
 
     public class Original_Info
     {
-        public int width { get; set; }
-        public int height { get; set; }
+        public long width { get; set; }
+        public long height { get; set; }
     }
 
     public class Sizes
@@ -472,48 +680,62 @@ namespace JSONModels.TwitterSearch
 
     public class Thumb
     {
-        public int w { get; set; }
-        public int h { get; set; }
+        public long w { get; set; }
+        public long h { get; set; }
         public string resize { get; set; }
     }
 
     public class Small
     {
-        public int w { get; set; }
-        public int h { get; set; }
+        public long w { get; set; }
+        public long h { get; set; }
         public string resize { get; set; }
     }
 
     public class Large
     {
-        public int w { get; set; }
-        public int h { get; set; }
+        public long w { get; set; }
+        public long h { get; set; }
         public string resize { get; set; }
     }
 
     public class Medium1
     {
-        public int w { get; set; }
-        public int h { get; set; }
+        public long w { get; set; }
+        public long h { get; set; }
         public string resize { get; set; }
     }
 
     public class Medium2
-    {/*
+    {
+        // Self-generated:
+        [Indexed]
+        public long tweetId { get; set; }
+        public DateTime created_time_from_id { get; set; }
+
+        public string video_aspect_ratio { get; set; }
+        public long? video_duration_millis { get; set; }
+
+        // From API:
+        [PrimaryKey,Indexed]
         public long id { get; set; }
-        public string id_str { get; set; }
-        public int[] indices { get; set; }
+        public string id_str { get; set; }/*
+        public long[] indices { get; set; }
+        */
         public string media_url { get; set; }
         public string media_url_https { get; set; }
         public string url { get; set; }
-        public string display_url { get; set; }*/
+        public string display_url { get; set; }
         public string expanded_url { get; set; }
+
         public string type { get; set; }/*
         public Original_Info1 original_info { get; set; }
         public Sizes1 sizes { get; set; }
-        public Video_Info video_info { get; set; }
-        public string media_key { get; set; }
-        public object ext_alt_text { get; set; }
+        */
+        [Ignore]
+        public Video_Info video_info { get; set; }/*
+        public string media_key { get; set; }*/
+        public string ext_alt_text { get; set; }/*
         public Ext_Media_Availability ext_media_availability { get; set; }
         public Ext_Media_Color ext_media_color { get; set; }
         public Ext1 ext { get; set; }
@@ -522,8 +744,8 @@ namespace JSONModels.TwitterSearch
 
     public class Original_Info1
     {
-        public int width { get; set; }
-        public int height { get; set; }
+        public long width { get; set; }
+        public long height { get; set; }
     }
 
     public class Sizes1
@@ -536,43 +758,49 @@ namespace JSONModels.TwitterSearch
 
     public class Thumb1
     {
-        public int w { get; set; }
-        public int h { get; set; }
+        public long w { get; set; }
+        public long h { get; set; }
         public string resize { get; set; }
     }
 
     public class Small1
     {
-        public int w { get; set; }
-        public int h { get; set; }
+        public long w { get; set; }
+        public long h { get; set; }
         public string resize { get; set; }
     }
 
     public class Large1
     {
-        public int w { get; set; }
-        public int h { get; set; }
+        public long w { get; set; }
+        public long h { get; set; }
         public string resize { get; set; }
     }
 
     public class Medium3
     {
-        public int w { get; set; }
-        public int h { get; set; }
+        public long w { get; set; }
+        public long h { get; set; }
         public string resize { get; set; }
     }
 
     public class Video_Info
     {
-        public int[] aspect_ratio { get; set; }
-        public int duration_millis { get; set; }
+        public long[] aspect_ratio { get; set; }
+        public long? duration_millis { get; set; }
         public Variant[] variants { get; set; }
     }
 
     public class Variant
     {
-        public int bitrate { get; set; }
+        // Manual:
+        [Indexed]
+        public long mediumId { get; set; }
+
+        // API:
+        public long bitrate { get; set; }
         public string content_type { get; set; }
+        [Unique]
         public string url { get; set; }
     }
 
@@ -594,9 +822,9 @@ namespace JSONModels.TwitterSearch
 
     public class Rgb2
     {
-        public int red { get; set; }
-        public int green { get; set; }
-        public int blue { get; set; }
+        public long red { get; set; }
+        public long green { get; set; }
+        public long blue { get; set; }
     }
 
     public class Ext1
@@ -607,7 +835,7 @@ namespace JSONModels.TwitterSearch
     public class Mediastats2
     {
         public R3 r { get; set; }
-        public int ttl { get; set; }
+        public long ttl { get; set; }
     }
 
     public class R3
@@ -718,8 +946,8 @@ namespace JSONModels.TwitterSearch
 
     public class Texthighlight
     {
-        public int startIndex { get; set; }
-        public int endIndex { get; set; }
+        public long startIndex { get; set; }
+        public long endIndex { get; set; }
     }
 
     public class Clienteventinfo
@@ -749,6 +977,125 @@ namespace JSONModels.TwitterSearch
         public string value { get; set; }
         public string cursorType { get; set; }
     }
+
+
+    public class User
+    {
+        // Generated:
+
+
+        [PrimaryKey, Indexed]
+        public long id { get; set; }
+        public string id_str { get; set; }
+        public string name { get; set; }
+        public string screen_name { get; set; }
+        public string location { get; set; }
+        public string description { get; set; }
+        public string url { get; set; }
+        //[Ignore]
+        //public UserDetails entities { get; set; }
+
+        [JsonConverter(typeof(RawPropertyConverter))]
+        public string entities { get; set; }
+        public bool _protected { get; set; }
+        public long followers_count { get; set; }
+        public long fast_followers_count { get; set; }
+        public long normal_followers_count { get; set; }
+        public long friends_count { get; set; }
+        public long listed_count { get; set; }
+        public string created_at { get; set; }
+        public long favourites_count { get; set; }
+        public string utc_offset { get; set; }
+        public string time_zone { get; set; }
+        public bool geo_enabled { get; set; }
+        public bool verified { get; set; }
+        public long statuses_count { get; set; }
+        public long media_count { get; set; }
+        public string lang { get; set; }
+        public bool contributors_enabled { get; set; }
+        public bool is_translator { get; set; }
+        public bool is_translation_enabled { get; set; }
+        public string profile_background_color { get; set; }
+        public string profile_background_image_url { get; set; }
+        public string profile_background_image_url_https { get; set; }
+        public bool profile_background_tile { get; set; }
+        public string profile_image_url { get; set; }
+        public string profile_image_url_https { get; set; }
+        public string profile_image_extensions_alt_text { get; set; }
+        //public object profile_image_extensions_media_availability { get; set; }
+        [Ignore]
+        public Profile_Image_Extensions_Media_Color profile_image_extensions_media_color { get; set; }
+
+        [Ignore]
+        public Profile_Image_Extensions profile_image_extensions { get; set; }
+        public string profile_link_color { get; set; }
+        public string profile_sidebar_border_color { get; set; }
+        public string profile_sidebar_fill_color { get; set; }
+        public string profile_text_color { get; set; }
+        public bool profile_use_background_image { get; set; }
+        public bool has_extended_profile { get; set; }
+        public bool default_profile { get; set; }
+        public bool default_profile_image { get; set; }
+        [JsonConverter(typeof(RawPropertyConverter))]
+        public string pinned_tweet_ids { get; set; }
+        //public long?[] pinned_tweet_ids { get; set; }
+        [JsonConverter(typeof(RawPropertyConverter))]
+        public string pinned_tweet_ids_str { get; set; }
+        //public string[] pinned_tweet_ids_str { get; set; }
+        public bool has_custom_timelines { get; set; }
+        /*
+        public object can_dm { get; set; }
+        public object following { get; set; }
+        public object follow_request_sent { get; set; }
+        public object notifications { get; set; }
+        public object muting { get; set; }
+        public object blocking { get; set; }
+        public object blocked_by { get; set; }
+        public object want_retweets { get; set; }*/
+        public string advertiser_account_type { get; set; }
+        [JsonConverter(typeof(RawPropertyConverter))]
+        public string advertiser_account_service_levels { get; set; }
+        //public string[] advertiser_account_service_levels { get; set; }
+        public string profile_longerstitial_type { get; set; }
+        public string business_profile_state { get; set; }
+        public string translator_type { get; set; }
+        [JsonConverter(typeof(RawPropertyConverter))]
+        public string withheld_in_countries { get; set; }
+        //public string[] withheld_in_countries { get; set; }
+        //public object followed_by { get; set; }
+        [Ignore]
+        public Ext ext { get; set; }
+        public bool require_some_consent { get; set; }
+        public string profile_banner_url { get; set; }
+        //public object profile_banner_extensions_alt_text { get; set; }
+        //public object profile_banner_extensions_media_availability { get; set; }
+        [Ignore]
+        public Profile_Banner_Extensions_Media_Color profile_banner_extensions_media_color { get; set; }
+        [Ignore]
+        public Profile_Banner_Extensions profile_banner_extensions { get; set; }
+    }
+
+    public class UserDetails
+    {
+        public Description2 description { get; set; }
+        public UrlMulti url { get; set; }
+    }
+
+    public class Description2
+    {
+        public Url[] urls { get; set; }
+    }
+    public class UrlMulti
+    {
+        public Url[] urls { get; set; }
+    }
+
+
+
+
+
+
+
 
 
 
