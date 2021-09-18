@@ -35,19 +35,19 @@ namespace TwitterSearchScraper
 
 
 
-            test();
+            //test();
 
-            //_ = Task.Run(go);
+            _ = Task.Run(go);
         }
 
         public void test()
         {
 
-            //string[] filesForTesting = Directory.GetFiles("logs");
-            string[] filesForTesting = Directory.GetFiles("testlogs");
+            string[] filesForTesting = Directory.GetFiles("logs");
+            //string[] filesForTesting = Directory.GetFiles("testlogs");
             //string[] filesForTesting = Directory.GetFiles("onelog");
 
-            var db = new SQLiteConnection("testiklus2.db",false);
+            var db = new SQLiteConnection("test.db",false);
 
             JSONModels.TwitterSearch.Tweet.createTables(db);
 
@@ -257,7 +257,7 @@ namespace TwitterSearchScraper
                                            //db.Insert(tweet);
                                        }
 
-                                       db.InsertAll(result.users.Values);
+                                       db.InsertAll(result.users.Values,"OR IGNORE");
 
                                        db.Commit();
                                        db.Close();
