@@ -6,6 +6,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace TwitterSearchScraper
 {
@@ -32,6 +33,7 @@ namespace TwitterSearchScraper
                 }
             }
         }
+
 
         protected void GetGuestToken()
         {
@@ -89,12 +91,18 @@ namespace TwitterSearchScraper
                                     Dictionary<string, string> headers = new Dictionary<string, string>();
                                     webcontent = strm.ReadToEnd();
 
+                                    Application.Current.Dispatcher.Invoke(() => {
+                                        File.AppendAllText("toomanyrequests.log", webcontent);
+                                        //Directory.CreateDirectory("logs");
+                                        //File.WriteAllText("logs\\" + DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss") + "-" + type + ".json", content);
+                                    });
                                     Console.WriteLine(webcontent);
                                 }
                             } catch(Exception f)
                             {
                                 Console.WriteLine("Error getting details on 429: " + f.Message);
                             }
+                            System.Threading.Thread.Sleep(5000);
                         }
                     }
                     

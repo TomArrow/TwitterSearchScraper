@@ -28,6 +28,7 @@ namespace TwitterSearchScraper
         public string type { get; set; }
         public CompressType compressType { get; set; }
         public byte[] content { get; set; }
+        public string contentRaw { get; set; }
         public DateTime when { get; set; }
     }
 
@@ -46,10 +47,11 @@ namespace TwitterSearchScraper
             switch (saveType)
             {
                 case SAVETYPE.SQLITE:
-                    LogEntry logEntry = new LogEntry() { content = compressGzip(content),compressType=LogEntry.CompressType.GZIP, type = type, when= DateTime.UtcNow };
+                    //LogEntry logEntry = new LogEntry() { content = compressGzip(content),compressType=LogEntry.CompressType.GZIP, type = type, when= DateTime.UtcNow };
+                    LogEntry logEntry = new LogEntry() { contentRaw = content,compressType=LogEntry.CompressType.RAW, type = type, when= DateTime.UtcNow };
                     Application.Current.Dispatcher.Invoke(() => {
                         lock (logDBmutex) { 
-                            var db = new SQLiteConnection("logs.db", false);
+                            var db = new SQLiteConnection("logs_"+ DateTime.UtcNow.ToString("yyyy-MM-dd") + ".db", false);
                             db.CreateTable<LogEntry>();
                             db.Insert(logEntry);
                             db.Close();
